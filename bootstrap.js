@@ -37,7 +37,13 @@
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 const DEBUG = true;
 const reportError = DEBUG ? Cu.reportError : function() {};
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/AddonManager.jsm");
+
+const SCRIPTS = ["utils"];
+const global = this;
+
 
 /**
  * Apply a callback to each open and new browser windows.
@@ -150,8 +156,61 @@ function unload(callback, container) {
 }
 
 
+function getPlaceFromURL(url) {
+  let utils = new Utils();
+  let result = utils.getDataQuery(
+    "SELECT id, frecency FROM moz_places WHERE url = :url", {"url" : url}, ["id","frecency"]);
+  if (result.length == 0) {
+    return null;
+  } else {
+    return result[0];
+  }
+}
+
+function addThumbnail(placeId, img) {
+  let utils = new Utils();
+  let d = new Date().getTime();
+  let existing = utils.getDataQuery(
+    "SELECT id, lastModified FROM moz_annos WHERE anno_attribute_id = :annoID AND place_id = :placeId",
+    {
+      "annoID" : global.annoID,
+      "placeId" : placeId,
+    }, ["id", "lastModified"]);
+  if (existing.length > 0) {
+    let oldDate = existing[0].lastModified;
+    if ((d - oldDate)/(1000* 60 * 60*24*40) > 1) {
+      utils.getDataQuery(
+      "UPDATE moz_annos SET content = :content, lastModified = :d WHERE id = :id", {
+        "id" : placeId,
+        "content" : img,
+        "d" : d,
+      }, [])
+
+    }
+  } else {
+    utils.insertData({
+      "anno_attribute_id" : annoID,
+      "content": img,
+      "place_id" : placeId,
+      "dateAdded": d,
+      "lastModified": d,
+    }, "moz_annos");
+  }
+}
+
 function handlePageLoad(e) {
   reportError("Handling a page load");
+  let doc = e.originalTarget;
+  let win = doc.defaultView;
+  let url = doc.location.href;
+
+  let place = getPlaceFromURL(url);
+  if (place && place.frecency && place.frecency > 1000) {
+    let thumb = getThumbnail(win, doc);
+    try {
+    addThumbnail(place.id, thumb);
+    } catch (ex) { reportError(ex) }
+  }
 }
 
 /**
@@ -172,7 +231,17 @@ function shiftBrowser(window) {
  */
 function startup(data, reason) {
   // Shift all open and new browser windows
-  watchWindows(shiftBrowser);
+  AddonManager.getAddonByID(data.id, function(addon) {
+    /* import scripts */
+    SCRIPTS.forEach(function(fileName) {
+      let fileURI = addon.getResourceURI("scripts/" + fileName + ".js");
+      Services.scriptloader.loadSubScript(fileURI.spec, global);
+    });
+    global.utils = global.utils ? global.utils : new Utils();
+    global.annoID = global.utils.createDB();
+    watchWindows(shiftBrowser);
+  });
+
 }
 
 /**
@@ -187,7 +256,10 @@ function shutdown(data, reason) {
 /**
  * Handle the add-on being installed
  */
-function install(data, reason) {}
+function install(data, reason) {
+  global.utils = global.utils ? global.utils : new Utils();
+  global.utils.createDB();
+}
 
 /**
  * Handle the add-on being uninstalled
