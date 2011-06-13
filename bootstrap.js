@@ -18,6 +18,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Abhinav Sharma <asharma@mozilla.com>
  *   Edward Lee <edilee@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -41,7 +42,7 @@ Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/AddonManager.jsm");
 
-const SCRIPTS = ["utils"];
+const SCRIPTS = ["utils", "dial"];
 const global = this;
 
 
@@ -185,7 +186,6 @@ function addThumbnail(placeId, img) {
         "content" : img,
         "d" : d,
       }, [])
-
     }
   } else {
     utils.insertData({
@@ -220,6 +220,37 @@ function shiftBrowser(window) {
   reportError("adding a listener");
   window.addEventListener("DOMContentLoaded", handlePageLoad, true);
 
+
+  function change(obj, prop, val) {
+    let orig = obj[prop];
+    obj[prop] = typeof val == "function" ? val(orig) : val;
+    unload(function() obj[prop] = orig, window);
+  }
+    
+  change(window.gBrowser, "loadOneTab", function(orig) {
+    return function(url) {
+      let tab = orig.apply(this, arguments);
+      if (url == "about:blank") {
+        let gBrowser = Services.wm.getMostRecentWindow("navigator:browser").gBrowser;
+        let fileURI = global.aboutURI.spec;
+        let tBrowser = gBrowser.getBrowserForTab(tab)
+        tBrowser.loadURI(fileURI, null, null);
+       
+        tab.linkedBrowser.addEventListener("load", function() {
+          tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
+          Services.wm.getMostRecentWindow("navigator:browser").gURLBar.value = "";
+          let doc = tab.linkedBrowser.contentDocument;
+          try {
+          let dashboard = new SpeedDial(doc, annoID, global.utils);
+          } catch (ex) { reportError(ex) };
+        }, true);
+
+      }
+      return tab;
+    };
+  });
+
+
   // Restore the original position when the add-on is unloaded
   unload(function() {
     window.removeEventListener("DOMContentLoaded", handlePageLoad, true);
@@ -239,6 +270,7 @@ function startup(data, reason) {
     });
     global.utils = global.utils ? global.utils : new Utils();
     global.annoID = global.utils.createDB();
+    global.aboutURI = addon.getResourceURI("content/dial.html");
     watchWindows(shiftBrowser);
   });
 
@@ -258,6 +290,7 @@ function shutdown(data, reason) {
  */
 function install(data, reason) {
   global.utils = global.utils ? global.utils : new Utils();
+  global.aboutURI
   global.utils.createDB();
 }
 
