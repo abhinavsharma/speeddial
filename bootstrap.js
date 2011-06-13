@@ -35,6 +35,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const DEBUG = true;
+const reportError = DEBUG ? Cu.reportError : function() {};
 Cu.import("resource://gre/modules/Services.jsm");
 
 /**
@@ -147,23 +149,21 @@ function unload(callback, container) {
   return removeUnloader;
 }
 
+
+function handlePageLoad(e) {
+  reportError("Handling a page load");
+}
+
 /**
  * Shift the window's main browser content down and right a bit
  */
 function shiftBrowser(window) {
-  let style = window.gBrowser.style;
-
-  // Save the original margin values to restore them later
-  let origTop = style.marginTop;
-  let origLeft = style.marginLeft;
-
-  // Push the main browser down and right
-  style.marginTop = style.marginLeft = "50px";
+  reportError("adding a listener");
+  window.addEventListener("DOMContentLoaded", handlePageLoad, true);
 
   // Restore the original position when the add-on is unloaded
   unload(function() {
-    style.marginTop = origTop;
-    style.marginLeft = origLeft;
+    window.removeEventListener("DOMContentLoaded", handlePageLoad, true);
   }, window);
 }
 
