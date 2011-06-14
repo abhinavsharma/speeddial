@@ -158,7 +158,7 @@ function unload(callback, container) {
 
 
 function getPlaceFromURL(url) {
-  let utils = new Utils();
+  let utils = global.utils;
   let result = utils.getDataQuery(
     "SELECT id, frecency FROM moz_places WHERE url = :url", {"url" : url}, ["id","frecency"]);
   if (result.length == 0) {
@@ -169,7 +169,7 @@ function getPlaceFromURL(url) {
 }
 
 function addThumbnail(placeId, img) {
-  let utils = new Utils();
+  let utils = global.utils;
   let d = new Date().getTime();
   let existing = utils.getDataQuery(
     "SELECT id, lastModified FROM moz_annos WHERE anno_attribute_id = :annoID AND place_id = :placeId",
@@ -179,7 +179,8 @@ function addThumbnail(placeId, img) {
     }, ["id", "lastModified"]);
   if (existing.length > 0) {
     let oldDate = existing[0].lastModified;
-    if ((d - oldDate)/(1000* 60 * 60*24*40) > 1) {
+    if ((d - oldDate)/(1000* 60 * 60*24*10) > 1) {
+      /* more than 10 days old*/
       utils.getDataQuery(
       "UPDATE moz_annos SET content = :content, lastModified = :d WHERE id = :id", {
         "id" : placeId,
@@ -205,7 +206,7 @@ function handlePageLoad(e) {
   let url = doc.location.href;
 
   let place = getPlaceFromURL(url);
-  if (place && place.frecency && place.frecency > 1000) {
+  if (place && place.frecency && place.frecency > 100) {
     let thumb = getThumbnail(win, doc);
     try {
     addThumbnail(place.id, thumb);
@@ -216,7 +217,7 @@ function handlePageLoad(e) {
 /**
  * Shift the window's main browser content down and right a bit
  */
-function shiftBrowser(window) {
+function setupDial(window) {
   reportError("adding a listener");
   window.addEventListener("DOMContentLoaded", handlePageLoad, true);
 
@@ -271,7 +272,7 @@ function startup(data, reason) {
     global.utils = global.utils ? global.utils : new Utils();
     global.annoID = global.utils.createDB();
     global.aboutURI = addon.getResourceURI("content/dial.html");
-    watchWindows(shiftBrowser);
+    watchWindows(setupDial);
   });
 
 }
