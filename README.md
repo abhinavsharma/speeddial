@@ -18,4 +18,4 @@ Links
 -----
 
 [Firefox New Tab Project](https://wiki.mozilla.org/Firefox/Features/New_Tab_Page)
-
+[AwesomeTab Project](https://github.com/abhinavsharma/awesomeTab/)
