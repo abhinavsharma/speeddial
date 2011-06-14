@@ -1,16 +1,4 @@
-Utils = function() {
-  let me = this;
-
-
-  me.taggingSvc = Cc["@mozilla.org/browser/tagging-service;1"]
-                  .getService(Ci.nsITaggingService);
-  me.bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"]
-                   .getService(Ci.nsINavBookmarksService);
-  me.ios = Cc["@mozilla.org/network/io-service;1"]
-           .getService(Ci.nsIIOService);
-  me.GET_PLACES_FROM_TAG = {};
-  me.GET_PLACE_ID_FROM_URL = {}
-};
+Utils = function() {};
 
 Utils.prototype.getDataQuery = function(query, params, select) {
   reportError(query);
@@ -21,53 +9,6 @@ Utils.prototype.getDataQuery = function(query, params, select) {
     query: query,
   })
 }
-
-Utils.prototype.getData = function(fields, conditions, table) {
-  let me = this;
-  let queryString = "SELECT ";
-  queryString += fields.join(',') + ' FROM ' + table + ' WHERE ';
-  let conditionArr = [];
-  for (let key in conditions) {
-    conditionArr.push(key + " = :" + key + "_v");
-  }
-  queryString += conditionArr.join(" AND ");
-  //reportError("query string constructed" + queryString);
-  //reportError("statement created, parametrizing with " + JSON.stringify(conditions));
-  let params = {};
-  for ([k, v] in Iterator(conditions)) {
-    //reportError("adding condition + " + k + " : " + v);
-    params[k + "_v"] = v;
-  }
-  //reportError("params are" + JSON.stringify(stm.params));
-  //reportError("executing statement");
-  return spinQuery(PlacesUtils.history.DBConnection, {
-    names: fields,
-    params: params,
-    query: queryString,
-  });
-  //reportError("returing " + JSON.stringify(ret));
-};
-
-Utils.prototype.updateData = function(id, data, table) {
-  let queryString = "UPDATE " + table + " SET ";
-  let updates = [];
-  for ([k, v] in Iterator(data)) {
-    updates.push(k + " = :" + k + "_v ");
-  }
-  queryString += " " + updates.join(',') + " ";
-  queryString += "WHERE id = :id";
-  //reportError(queryString);
-  let params = {
-    id: id,
-  }
-  for ([k,v] in Iterator(data)) {
-    params[k + "_v"] = v;
-  }
-  spinQuery(PlacesUtils.history.DBConection, {
-    params: params,
-    query: queryString,
-  });
-};
 
 Utils.prototype.insertData = function(data, table) {
   let flatData = [];
@@ -205,8 +146,8 @@ function spinQuery(connection, {names, params, query}) {
 
 function getThumbnail(win, doc) {
   let canvas = doc.createElement("canvas"); // where?
-  canvas.setAttribute('width', '90');
-  canvas.setAttribute('height', '70');
+  canvas.setAttribute('width', '120');
+  canvas.setAttribute('height', '100');
   let aspectRatio = canvas.width / canvas.height;
   let w = win.innerWidth + win.scrollMaxX;
   let h = Math.max(win.innerHeight, w / aspectRatio);
@@ -231,4 +172,21 @@ function getThumbnail(win, doc) {
   return img;
 }
 
-
+Utils.prototype.AsyncQuery = function(query, params, callback) {
+  if (!query) {
+    return;
+  }
+  
+  let db = PlacesUtils.history.DBConnection;
+  let stmt = db.createStatement(query);
+  if (aItem.params) {
+    for (let [name, value] in Iterator(params)) {
+      stmt.params[name] = value;
+    }
+  }
+  stmt.executeAsync({
+    handleResult: callback,
+    handleError: function (error) { reportError(ex) },
+    handleCompletion: function() {},
+  });
+}

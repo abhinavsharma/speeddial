@@ -42,7 +42,7 @@ Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/AddonManager.jsm");
 
-const SCRIPTS = ["utils", "dial"];
+const SCRIPTS = ["utils", "dial", "thumbnail"];
 const global = this;
 
 
@@ -201,6 +201,8 @@ function addThumbnail(placeId, img) {
 
 function handlePageLoad(e) {
   reportError("Handling a page load");
+  global.thumbnailer.handlePageLoad(e);
+  /*
   let doc = e.originalTarget;
   let win = doc.defaultView;
   let url = doc.location.href;
@@ -212,6 +214,7 @@ function handlePageLoad(e) {
     addThumbnail(place.id, thumb);
     } catch (ex) { reportError(ex) }
   }
+  */
 }
 
 /**
@@ -220,8 +223,6 @@ function handlePageLoad(e) {
 function setupDial(window) {
   reportError("adding a listener");
   window.addEventListener("DOMContentLoaded", handlePageLoad, true);
-
-
   function change(obj, prop, val) {
     let orig = obj[prop];
     obj[prop] = typeof val == "function" ? val(orig) : val;
@@ -242,6 +243,7 @@ function setupDial(window) {
           Services.wm.getMostRecentWindow("navigator:browser").gURLBar.value = "";
           let doc = tab.linkedBrowser.contentDocument;
           try {
+          let annoID = global.thumbnailer.getAnnoID();
           let dashboard = new SpeedDial(doc, annoID, global.utils);
           } catch (ex) { reportError(ex) };
         }, true);
@@ -269,8 +271,12 @@ function startup(data, reason) {
       let fileURI = addon.getResourceURI("scripts/" + fileName + ".js");
       Services.scriptloader.loadSubScript(fileURI.spec, global);
     });
+    global.thumbnailer = global.thumbnailer ? global.thumbnailer : new Thumbnailer();
+    
     global.utils = global.utils ? global.utils : new Utils();
+    /*
     global.annoID = global.utils.createDB();
+    */
     global.aboutURI = addon.getResourceURI("content/dial.html");
     watchWindows(setupDial);
   });
@@ -290,6 +296,7 @@ function shutdown(data, reason) {
  * Handle the add-on being installed
  */
 function install(data, reason) {
+  global.thumbnailer = new Thubnailer();
   global.utils = global.utils ? global.utils : new Utils();
   global.aboutURI
   global.utils.createDB();
